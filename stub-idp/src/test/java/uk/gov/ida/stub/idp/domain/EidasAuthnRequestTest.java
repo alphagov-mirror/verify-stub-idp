@@ -43,6 +43,7 @@ import uk.gov.ida.stub.idp.exceptions.InvalidEidasAuthnRequestException;
 import uk.gov.ida.stub.idp.repositories.EidasSessionRepository;
 import uk.gov.ida.stub.idp.repositories.IdpSessionRepository;
 import uk.gov.ida.stub.idp.services.AuthnRequestReceiverService;
+import uk.gov.ida.stub.idp.services.SigningCertFromMetadataExtractorService;
 
 import java.security.KeyPair;
 import java.security.PrivateKey;
@@ -85,11 +86,14 @@ public class EidasAuthnRequestTest {
     @Mock
     private Function<String, AuthnRequest> stringAuthnRequestTransformer;
 
+    @Mock
+    private SigningCertFromMetadataExtractorService signingCertFromMetadataExtractorService;
+
     @Before
     public void setUp(){
         IdaSamlBootstrap.bootstrap();
         authnRequestReceiverService = new AuthnRequestReceiverService(
-                samlRequestTransformer, idpSessionRepository, eidasSessionRepository, stringAuthnRequestTransformer);
+                samlRequestTransformer, idpSessionRepository, eidasSessionRepository, stringAuthnRequestTransformer, Optional.of(signingCertFromMetadataExtractorService));
         authnRequest = AuthnRequestBuilder.anAuthnRequest().build();
     }
 

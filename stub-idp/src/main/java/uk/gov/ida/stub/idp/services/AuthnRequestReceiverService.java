@@ -1,7 +1,10 @@
 package uk.gov.ida.stub.idp.services;
 
 import org.apache.commons.lang.StringEscapeUtils;
+import org.cryptacular.EncodingException;
 import org.opensaml.saml.saml2.core.AuthnRequest;
+import org.opensaml.xmlsec.keyinfo.KeyInfoSupport;
+import org.opensaml.xmlsec.signature.X509Certificate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import uk.gov.ida.common.SessionId;
@@ -19,6 +22,7 @@ import uk.gov.ida.stub.idp.repositories.IdpSessionRepository;
 import javax.inject.Inject;
 import javax.ws.rs.core.UriBuilder;
 import java.net.URI;
+import java.security.cert.CertificateEncodingException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -35,6 +39,7 @@ public class AuthnRequestReceiverService {
     private final IdpSessionRepository idpSessionRepository;
     private final EidasSessionRepository eidasSessionRepository;
     private final Function<String, AuthnRequest> stringAuthnRequestTransformer;
+    private final Optional<SigningCertFromMetadataExtractorService> signingCertFromMetadataExtractorService;
 
     public static class SessionCreated {
         private URI nextLocation;
@@ -59,12 +64,15 @@ public class AuthnRequestReceiverService {
             Function<String, IdaAuthnRequestFromHub> samlRequestTransformer,
             IdpSessionRepository idpSessionRepository,
             EidasSessionRepository eidasSessionRepository,
-            Function<String, AuthnRequest> stringToAuthnRequestTransformer) {
+            Function<String, AuthnRequest> stringToAuthnRequestTransformer,
+            Optional<SigningCertFromMetadataExtractorService> signingCertFromMetadataExtractorService
+    ) {
 
         this.samlRequestTransformer = samlRequestTransformer;
         this.idpSessionRepository = idpSessionRepository;
         this.eidasSessionRepository = eidasSessionRepository;
         this.stringAuthnRequestTransformer = stringToAuthnRequestTransformer;
+        this.signingCertFromMetadataExtractorService = signingCertFromMetadataExtractorService;
     }
 
     public SessionCreated handleAuthnRequest(String idpName, String samlRequest, Set<String> idpHints,
@@ -109,6 +117,22 @@ public class AuthnRequestReceiverService {
         }
         if (request.getSignature().getKeyInfo().getX509Datas().get(0).getX509Certificates().isEmpty()) {
             throw new InvalidEidasAuthnRequestException("Must contain X509 certificate");
+        }
+        validateEidasAuthRequestSigningCert(request);
+    }
+
+    private void validateEidasAuthRequestSigningCert(AuthnRequest request) {
+        java.security.cert.X509Certificate connectorX509Cert = signingCertFromMetadataExtractorService.get().getSigningCertFromConnectorMetadata();
+        X509Certificate x509RequestSigningCert = request.getSignature().getKeyInfo().getX509Datas().get(0).getX509Certificates().get(0);
+        X509Certificate x509ConnectorSigningCert;
+        try {
+            x509ConnectorSigningCert = KeyInfoSupport.buildX509Certificate(connectorX509Cert);
+        } catch (CertificateEncodingException e) {
+            throw new EncodingException("Unable to build OpenSaml X509Cert from Java X509Cert", e);
+        }
+
+        if (!x509RequestSigningCert.getValue().equals(x509ConnectorSigningCert.getValue())) {
+            throw new InvalidEidasAuthnRequestException("Signing Cert in EidasAuthnRequest does not match X509 in Connector Metadata");
         }
     }
 

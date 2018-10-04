@@ -11,6 +11,7 @@ import io.dropwizard.configuration.DefaultConfigurationFactoryFactory;
 import io.dropwizard.servlets.tasks.Task;
 import io.dropwizard.setup.Bootstrap;
 import io.dropwizard.setup.Environment;
+import net.shibboleth.utilities.java.support.component.ComponentInitializationException;
 import org.jdbi.v3.core.Jdbi;
 import org.joda.time.Period;
 import org.joda.time.ReadablePeriod;
@@ -472,6 +473,16 @@ public class StubIdpModule extends AbstractModule {
     @Singleton
     public ServiceListService getServiceListService(StubIdpConfiguration configuration, JsonClient jsonClient) {
         return new ServiceListService(configuration.getSingleIdpJourneyConfiguration(), jsonClient);
+    }
+
+    @Provides
+    @Singleton
+    private Optional<SigningCertFromMetadataExtractorService> getSigningCertFromMetadataExtractor(@Named(HUB_CONNECTOR_METADATA_RESOLVER) Optional<MetadataResolver> metadataResolver,
+                                                                                                  @Named("HubConnectorEntityId") String hubConnectorEntityId) throws ComponentInitializationException {
+        if (metadataResolver.isPresent()) {
+            return Optional.of(new SigningCertFromMetadataExtractorService(metadataResolver.get(), hubConnectorEntityId));
+        }
+        return Optional.empty();
     }
 
     private void registerMetadataHealthcheckAndRefresh(Environment environment, MetadataResolver metadataResolver, MetadataResolverConfiguration metadataResolverConfiguration, String name) {
