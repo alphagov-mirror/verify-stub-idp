@@ -1,3 +1,4 @@
+
 buildscript {
     repositories {
         if (System.getenv('VERIFY_USE_PUBLIC_BINARIES') == 'true') {
@@ -14,9 +15,9 @@ buildscript {
     }
 }
 
-apply plugin: 'idea'
-apply plugin: 'java'
+plugins { id "io.github.gradle-nexus.publish-plugin" version "1.0.0" }
 apply plugin: 'com.github.ben-manes.versions'
+apply plugin: 'io.github.gradle-nexus.publish-plugin'
 
 ext {
   opensaml_version = '3.4.3'
@@ -34,14 +35,85 @@ def dependencyVersions = [
         hk2_version           : '2.5.0-b05'
 ]
 
-subprojects {
+allprojects {
+    apply plugin: 'idea'
     apply plugin: 'java'
+    apply plugin: 'idea'
+    apply plugin: 'signing'
+    apply plugin: 'maven-publish'
+}
+
+nexusPublishing {
+    useStaging = true
+    repositories {
+        sonatype {
+            // because we registered in Sonatype after 24 Feb 2021, we provide these URIs
+            // see: https://github.com/gradle-nexus/publish-plugin/blob/master/README.md
+            nexusUrl.set(uri("https://s01.oss.sonatype.org/service/local/"))
+            snapshotRepositoryUrl.set(uri("https://s01.oss.sonatype.org/content/repositories/snapshots/"))
+            username = System.getenv("SONATYPE_USERNAME")
+            password = System.getenv("SONATYPE_PASSWORD")
+        }
+    }
+
+}
+
+group = "uk.gov.ida"
+version = "${version ?: 'SNAPSHOT'}"
+
+subprojects {
 
     group = "uk.gov.ida"
     version = "${version ?: 'SNAPSHOT'}"
 
     compileJava.options.encoding = "UTF-8"
     compileTestJava.options.encoding = "UTF-8"
+
+
+    publishing {
+        publications {
+            mavenJava(MavenPublication) {
+                from components.java
+                groupId = 'uk.gov.ida'
+                pom {
+                    name = project.name
+                    packaging = 'jar'
+                    description = "Library for ${project.name}"
+                    url = "https://github.com/alphagov/${project.name}"
+                    artifactId = project.name
+
+                    scm {
+                        url = "https://github.com/alphagov/${project.name}"
+                        connection = "scm:git:git://github.com/alphagov/${project.name}.git"
+                        developerConnection = "scm:git:ssh://git@github.com:alphagov/${project.name}.git"
+                    }
+
+                    licenses {
+                        license {
+                            name = 'MIT Licence'
+                            url = "https://github.com/alphagov/${project.name}/blob/master/LICENCE"
+                            distribution = 'repo'
+                        }
+                    }
+
+                    developers {
+                        developer {
+                            name = 'GDS Developers'
+                        }
+                    }
+                } // pom
+            }
+        }
+    }
+    signing {
+        /**
+        useInMemoryPgpKeys(
+                System.getenv("MAVEN_CENTRAL_SIGNING_KEY"),
+                System.getenv("MAVEN_CENTRAL_SIGNING_KEY_PASSWORD")
+        )*/
+        sign publishing.publications
+    }
+
 
     repositories {
         if (System.getenv('VERIFY_USE_PUBLIC_BINARIES') == 'true') {

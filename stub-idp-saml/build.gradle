@@ -1,7 +1,7 @@
+apply plugin: 'signing'
 dependencies {
     compile configurations.stub_idp_saml
 
     testCompile configurations.stub_idp_saml_test,
             project(':stub-idp-saml-test')
 }
-
